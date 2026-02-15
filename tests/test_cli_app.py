@@ -75,6 +75,8 @@ def test_chat_command_invokes_interactive_runner(monkeypatch, tmp_path: Path) ->
         async def run(self) -> None:
             called["run"] = True
 
+    # Clear BUB_SESSION_ID to ensure the default "cli" is used
+    monkeypatch.delenv("BUB_SESSION_ID", raising=False)
     monkeypatch.setattr(cli_app_module, "build_runtime", _fake_build_runtime)
     monkeypatch.setattr(cli_app_module, "InteractiveCli", _FakeInteractive)
 
