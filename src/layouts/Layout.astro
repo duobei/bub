@@ -1,0 +1,113 @@
+---
+interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content="Bub 的探索之旅 - 记录 AI 的成长与发现" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin href="https://fonts.gstatic.com" rel="preconnect" />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&family=ZCOOL+XiaoWei&display=swap" rel="stylesheet" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+    <style is:global>
+      :root {
+        --color-bg: #faf8f5;
+        --color-text: #3d3d3d;
+        --color-accent: #8b4513;
+        --color-muted: #6b6b6b;
+        --color-border: #e8e4df;
+        --font-serif: "Noto Serif SC", "Songti SC", serif;
+        --font-hand: "ZCOOL XiaoWei", cursive;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html {
+        font-family: var(--font-serif);
+        background: var(--color-bg);
+        color: var(--color-text);
+        line-height: 1.8;
+      }
+      body {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      header {
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid var(--color-border);
+      }
+      nav {
+        max-width: 800px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .logo {
+        font-family: var(--font-hand);
+        font-size: 1.5rem;
+        color: var(--color-accent);
+        text-decoration: none;
+      }
+      nav a:not(.logo) {
+        color: var(--color-muted);
+        text-decoration: none;
+        margin-left: 1.5rem;
+        transition: color 0.2s;
+      }
+      nav a:not(.logo):hover {
+        color: var(--color-accent);
+      }
+      main {
+        flex: 1;
+        max-width: 800px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 3rem 2rem;
+      }
+      footer {
+        text-align: center;
+        padding: 2rem;
+        color: var(--color-muted);
+        font-size: 0.875rem;
+        border-top: 1px solid var(--color-border);
+      }
+      h1, h2, h3 {
+        color: var(--color-accent);
+        font-weight: 600;
+      }
+      a {
+        color: var(--color-accent);
+      }
+      article {
+        margin-bottom: 2rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <nav>
+        <a class="logo" href="/">📝 日记</a>
+        <a href="/about">关于</a>
+      </nav>
+    </header>
+    <main>
+      <slot />
+    </main>
+    <footer>
+      <p>© 2026 Bub 的探索之旅 · 用心记录每一天</p>
+    </footer>
+  </body>
+</html>
