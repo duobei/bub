@@ -163,6 +163,14 @@ class ModelRunner:
         )
 
     async def _chat(self, prompt: str) -> _ChatResult:
+        result = await self._chat_once(prompt)
+        if result.error and _is_tool_call_format_error(result.error):
+            logger.warning("model.tool_call_format_error — creating recovery anchor and retrying")
+            self._tape.handoff("recovery/tool_call_error", state={"reason": "tool_call_format_error"})
+            return await self._chat_once(prompt)
+        return result
+
+    async def _chat_once(self, prompt: str) -> _ChatResult:
         system_prompt = self._render_system_prompt()
         try:
             async with asyncio.timeout(self._model_timeout_seconds):
@@ -235,6 +243,14 @@ class _ChatResult:
         if output.error is None:
             return cls(text="", error="tool_auto_error: unknown")
         return cls(text="", error=f"{output.error.kind.value}: {output.error.message}")
+
+
+def _is_tool_call_format_error(error: str) -> bool:
+    """Check if the error is a tool call format/argument error from the provider."""
+    lower = error.lower()
+    return "invalid function arguments" in lower or (
+        "tool_call_id" in lower and "invalid params" in lower
+    )
 
 
 def _runtime_contract() -> str:

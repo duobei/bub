@@ -88,8 +88,34 @@ def _normalize_tool_calls(value: object) -> list[dict[str, Any]]:
     calls: list[dict[str, Any]] = []
     for item in value:
         if isinstance(item, dict):
-            calls.append(dict(item))
+            calls.append(_sanitize_tool_call(dict(item)))
     return calls
+
+
+def _sanitize_tool_call(call: dict[str, Any]) -> dict[str, Any]:
+    """Ensure tool call function.arguments is a valid JSON string.
+
+    Some providers (e.g. MiniMax) may store malformed arguments in the tape.
+    Sanitizing here prevents corrupted history from poisoning future requests.
+    """
+    function = call.get("function")
+    if not isinstance(function, dict):
+        return call
+
+    args = function.get("arguments")
+    if isinstance(args, dict):
+        # Dict stored directly — serialize to JSON string for the API
+        function["arguments"] = json.dumps(args, ensure_ascii=False)
+    elif isinstance(args, str):
+        # Validate JSON; replace if invalid
+        try:
+            json.loads(args)
+        except (json.JSONDecodeError, ValueError):
+            function["arguments"] = "{}"
+    elif args is None:
+        function["arguments"] = "{}"
+
+    return call
 
 
 def _render_tool_result(result: object) -> str:
