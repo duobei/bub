@@ -168,6 +168,10 @@ class ModelRunner:
             logger.warning("model.tool_call_format_error — creating recovery anchor and retrying")
             self._tape.handoff("recovery/tool_call_error", state={"reason": "tool_call_format_error"})
             return await self._chat_once(prompt)
+        if result.error and _is_context_length_error(result.error):
+            logger.warning("model.context_length_exceeded — creating recovery anchor and retrying")
+            self._tape.handoff("recovery/context_length", state={"reason": "context_length_exceeded"})
+            return await self._chat_once(prompt)
         return result
 
     async def _chat_once(self, prompt: str) -> _ChatResult:
@@ -250,6 +254,18 @@ def _is_tool_call_format_error(error: str) -> bool:
     lower = error.lower()
     return "invalid function arguments" in lower or (
         "tool_call_id" in lower and "invalid params" in lower
+    )
+
+
+def _is_context_length_error(error: str) -> bool:
+    """Check if the error is a context window / token limit error from the provider."""
+    lower = error.lower()
+    return (
+        "context window exceeds limit" in lower
+        or "context_length_exceeded" in lower
+        or "context length exceeded" in lower
+        or "maximum context length" in lower
+        or ("token" in lower and "limit" in lower and ("exceed" in lower or "too long" in lower))
     )
 
 
