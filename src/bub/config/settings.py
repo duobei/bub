@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     discord_command_prefix: str = "!"
     discord_proxy: str | None = None
 
+    searxng_url: str | None = None
+
     @property
     def resolved_api_key(self) -> str | None:
         if self.api_key:

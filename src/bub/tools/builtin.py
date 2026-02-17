@@ -345,7 +345,38 @@ def register_builtin_tools(
 
         return "\n".join(rows)
 
-    if runtime.settings.ollama_api_key:
+    if runtime.settings.searxng_url:
+
+        @register(name="web.search", short_description="Search the web", model=SearchInput)
+        async def web_search_searxng(params: SearchInput) -> str:
+            import aiohttp
+
+            base_url = runtime.settings.searxng_url.rstrip("/")
+            query = urllib_parse.quote_plus(params.query)
+            endpoint = f"{base_url}/search?q={query}&format=json"
+            try:
+                async with (
+                    aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=WEB_REQUEST_TIMEOUT_SECONDS)) as session,
+                    session.get(
+                        endpoint,
+                        headers={"User-Agent": WEB_USER_AGENT},
+                    ) as response,
+                ):
+                    response_body = await response.text()
+            except aiohttp.ClientError as exc:
+                return f"HTTP error: {exc!s}"
+
+            try:
+                data = json.loads(response_body)
+            except json.JSONDecodeError as exc:
+                return f"error: invalid json response: {exc!s}"
+
+            results = data.get("results")
+            if not isinstance(results, list) or not results:
+                return "none"
+            return _format_search_results(results[: params.max_results])
+
+    elif runtime.settings.ollama_api_key:
 
         @register(name="web.search", short_description="Search the web", model=SearchInput)
         async def web_search_ollama(params: SearchInput) -> str:
