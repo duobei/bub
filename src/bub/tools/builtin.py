@@ -93,6 +93,10 @@ class SkillNameInput(BaseModel):
     name: str = Field(..., description="Skill name")
 
 
+class DoneInput(BaseModel):
+    summary: str = Field(default="", description="Brief summary of what was accomplished")
+
+
 class EmptyInput(BaseModel):
     pass
 
@@ -474,6 +478,7 @@ def register_builtin_tools(
         if params.next_steps:
             state["next_steps"] = params.next_steps
         tape.handoff(anchor_name, state=state or None)
+        tape.done_requested = True
         return f"handoff created: {anchor_name}"
 
     @register(name="tape.anchors", short_description="List tape anchors", model=EmptyInput)
@@ -536,6 +541,11 @@ def register_builtin_tools(
         if not body:
             raise RuntimeError(f"skill not found: {params.name}")
         return body
+
+    @register(name="done", short_description="Signal task completion", model=DoneInput)
+    def done_command(params: DoneInput) -> str:
+        """Call this tool when you have finished the current task. This stops the agent loop."""
+        return f"done: {params.summary}" if params.summary else "done"
 
     @register(name="quit", short_description="Exit program", model=EmptyInput)
     def quit_command(_params: EmptyInput) -> str:

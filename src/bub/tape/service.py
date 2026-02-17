@@ -53,6 +53,7 @@ class TapeService:
         self._llm = llm
         self._store = store
         self._tape = llm.tape(tape_name)
+        self.done_requested: bool = False
 
     @property
     def tape(self) -> Tape:

@@ -109,6 +109,11 @@ class ModelRunner:
                 break
 
             if response.followup_prompt:
+                if self._tape.done_requested:
+                    self._tape.done_requested = False
+                    logger.info("model.runner.done_requested step={}", state.step)
+                    self._tape.append_event("loop.done_requested", {"step": state.step})
+                    break
                 self._tape.append_event(
                     "loop.step.finish",
                     {
@@ -238,15 +243,24 @@ class _ChatResult:
     def from_tool_auto(cls, output: ToolAutoResult) -> _ChatResult:
         if output.kind == "text":
             return cls(text=output.text or "")
-        if output.kind == "tools":
-            return cls(text="", followup_prompt=TOOL_CONTINUE_PROMPT)
 
-        if output.tool_calls or output.tool_results:
+        if output.kind == "tools" or output.tool_calls or output.tool_results:
+            if _has_done_tool_call(output.tool_calls):
+                return cls(text="")
             return cls(text="", followup_prompt=TOOL_CONTINUE_PROMPT)
 
         if output.error is None:
             return cls(text="", error="tool_auto_error: unknown")
         return cls(text="", error=f"{output.error.kind.value}: {output.error.message}")
+
+
+def _has_done_tool_call(tool_calls: list[dict[str, object]]) -> bool:
+    """Check if any tool call is the 'done' signal."""
+    for call in tool_calls:
+        fn = call.get("function") or {}
+        if isinstance(fn, dict) and fn.get("name") == "done":
+            return True
+    return False
 
 
 def _is_tool_call_format_error(error: str) -> bool:
@@ -276,7 +290,7 @@ def _runtime_contract() -> str:
         "2) Do not emit comma-prefixed commands in normal flow; use tool calls instead.\n"
         "3) If a compatibility fallback is required, runtime can still parse comma commands.\n"
         "4) Never emit '<command ...>' blocks yourself; those are runtime-generated.\n"
-        "5) When enough evidence is collected, return plain natural language answer.\n"
+        "5) When the task is complete, call the `done` tool to stop. Do NOT continue making tool calls after the task is finished.\n"
         "6) Use '$name' hints to request detail expansion for tools/skills when needed.\n"
         "</runtime_contract>"
         "<context_contract>\n"
