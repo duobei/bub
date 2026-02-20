@@ -1,0 +1,3 @@
+[submodule ".agent/bob-ops"]
+	path = .agent/bob-ops
+	url = git@github.com:duobei/bob-ops.git

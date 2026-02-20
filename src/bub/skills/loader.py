@@ -9,6 +9,7 @@ from typing import Any, cast
 import yaml
 
 PROJECT_SKILLS_DIR = ".agent/skills"
+BOB_OPS_SKILLS_DIR = ".agent/bob-ops/skills"
 SKILL_FILE_NAME = "SKILL.md"
 
 
@@ -28,6 +29,7 @@ def discover_skills(workspace_path: Path) -> list[SkillMetadata]:
 
     ordered_roots = [
         (workspace_path / PROJECT_SKILLS_DIR, "project"),
+        (workspace_path / BOB_OPS_SKILLS_DIR, "bob-ops"),
         (Path.home() / PROJECT_SKILLS_DIR, "global"),
         (_builtin_skills_root(), "builtin"),
     ]
