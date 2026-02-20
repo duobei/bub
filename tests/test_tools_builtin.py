@@ -96,7 +96,7 @@ def scheduler() -> Iterator[BackgroundScheduler]:
 
 
 def test_web_search_default_returns_duckduckgo_url(tmp_path: Path, scheduler: BackgroundScheduler) -> None:
-    settings = Settings(_env_file=None, model="openrouter:test")
+    settings = Settings(_env_file=None, model="openrouter:test", searxng_url=None)
     registry = _build_registry(tmp_path, settings, scheduler)
     result = _execute_tool(registry, "web.search", kwargs={"query": "psiace bub"})
     assert result == "https://duckduckgo.com/?q=psiace+bub"
@@ -201,6 +201,7 @@ def test_web_search_ollama_mode_calls_api(tmp_path: Path, monkeypatch: Any, sche
         model="openrouter:test",
         ollama_api_key="ollama-test-key",
         ollama_api_base="https://search.ollama.test/api",
+        searxng_url=None,
     )
     registry = _build_registry(tmp_path, settings, scheduler)
     result = _execute_tool(registry, "web.search", kwargs={"query": "test query", "max_results": 3})

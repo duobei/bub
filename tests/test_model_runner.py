@@ -102,6 +102,7 @@ class FakeTapeImpl:
 class FakeTapeService:
     tape: FakeTapeImpl
     events: list[tuple[str, dict[str, object]]] = field(default_factory=list)
+    done_requested: bool = False
 
     def append_event(self, name: str, data: dict[str, object]) -> None:
         self.events.append((name, data))
