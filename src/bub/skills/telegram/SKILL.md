@@ -69,6 +69,8 @@ But when any explanation or details are needed, use a normal reply instead.
 
 Paths are relative to this skill directory.
 
+### Using Python Scripts
+
 ```bash
 # Send message
 uv run ./scripts/telegram_send.py \
@@ -95,7 +97,32 @@ uv run ./scripts/telegram_edit.py \
   --text "<TEXT>"
 ```
 
-For other actions that not covered by these scripts, use `curl` to call Telegram Bot API directly with the provided token.
+### Using curl (Direct API)
+
+```bash
+# Send message
+curl -s -X POST "https://api.telegram.org/bot${BUB_TELEGRAM_TOKEN}/sendMessage" \
+  -d "chat_id=<CHAT_ID>" \
+  -d "text=<TEXT>"
+
+# Send with Markdown formatting
+curl -s -X POST "https://api.telegram.org/bot${BUB_TELEGRAM_TOKEN}/sendMessage" \
+  -d "chat_id=<CHAT_ID>" \
+  -d "text=*Bold* _Italic_ \`code\`" \
+  -d "parse_mode=MarkdownV2"
+
+# Reply to message
+curl -s -X POST "https://api.telegram.org/bot${BUB_TELEGRAM_TOKEN}/sendMessage" \
+  -d "chat_id=<CHAT_ID>" \
+  -d "text=<TEXT>" \
+  -d "reply_to_message_id=<MESSAGE_ID>"
+
+# Check result
+response=$(curl -s -X POST "https://api.telegram.org/bot${BUB_TELEGRAM_TOKEN}/sendMessage" \
+  -d "chat_id=<CHAT_ID>" \
+  -d "text=Test")
+echo "$response" | jq -r '.ok'  # Should output: true
+```
 
 ## Script Interface Reference
 
@@ -124,3 +151,12 @@ For other actions that not covered by these scripts, use `curl` to call Telegram
   - what failed
   - what was already completed
   - what will happen next (retry/manual action/escalation)
+
+## Common Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| 404 Not Found | Bot not in chat | Add bot to group/chat |
+| 403 Forbidden | Bot blocked by user | User needs to start bot |
+| 400 Bad Request | Invalid chat_id | Verify chat_id format |
+| 401 Unauthorized | Invalid token | Check BOT_TOKEN in .env |

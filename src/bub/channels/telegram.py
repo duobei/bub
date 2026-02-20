@@ -228,7 +228,10 @@ class TelegramChannel(BaseChannel[Message]):
         if output.error:
             send_back_text.append(f"Error: {output.error}")
         if send_back_text and self._app is not None:
-            await self._app.bot.send_message(chat_id=session_id.split(":", 1)[1], text="\n\n".join(send_back_text))
+            full_text = "\n\n".join(send_back_text)
+            chat_id = session_id.split(":", 1)[1]
+            for chunk in _split_message(full_text):
+                await self._app.bot.send_message(chat_id=chat_id, text=chunk)
 
     async def _on_start(self, update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
         if update.message is None:
@@ -428,3 +431,25 @@ class TelegramChannel(BaseChannel[Message]):
         "document": _parse_document,
         "video_note": _parse_video_note,
     }
+
+
+MAX_TELEGRAM_MESSAGE_LENGTH = 4096
+
+
+def _split_message(text: str, limit: int = MAX_TELEGRAM_MESSAGE_LENGTH) -> list[str]:
+    """Split text into chunks that fit within Telegram's message length limit."""
+    if len(text) <= limit:
+        return [text]
+    chunks: list[str] = []
+    while text:
+        if len(text) <= limit:
+            chunks.append(text)
+            break
+        # Try to split at a newline boundary
+        split_at = text.rfind("\n", 0, limit)
+        if split_at <= 0:
+            # No newline found; split at limit
+            split_at = limit
+        chunks.append(text[:split_at])
+        text = text[split_at:].lstrip("\n")
+    return chunks

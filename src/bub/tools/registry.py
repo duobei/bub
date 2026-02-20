@@ -206,7 +206,7 @@ class ToolRegistry:
 
         if descriptor.tool.context:
             kwargs["context"] = context
-        result = descriptor.tool.run(context=context, **kwargs)
+        result = descriptor.tool.run(**kwargs)
         if inspect.isawaitable(result):
             result = await result
         return result
