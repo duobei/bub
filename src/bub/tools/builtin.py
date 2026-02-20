@@ -355,7 +355,10 @@ def register_builtin_tools(
         async def web_search_searxng(params: SearchInput) -> str:
             import aiohttp
 
-            base_url = runtime.settings.searxng_url.rstrip("/")
+            base_url = runtime.settings.searxng_url
+            if not base_url:
+                return "error: searxng_url is not configured"
+            base_url = base_url.rstrip("/")
             query = urllib_parse.quote_plus(params.query)
             endpoint = f"{base_url}/search?q={query}&format=json"
             try:

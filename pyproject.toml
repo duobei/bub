@@ -95,6 +95,7 @@ fix = true
 extend-exclude = [
     "src/bub/skills",
     "backup",
+    ".agents",
 ]
 
 [tool.ruff.lint]
