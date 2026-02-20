@@ -266,9 +266,7 @@ def _has_done_tool_call(tool_calls: list[dict[str, object]]) -> bool:
 def _is_tool_call_format_error(error: str) -> bool:
     """Check if the error is a tool call format/argument error from the provider."""
     lower = error.lower()
-    return "invalid function arguments" in lower or (
-        "tool_call_id" in lower and "invalid params" in lower
-    )
+    return "invalid function arguments" in lower or ("tool_call_id" in lower and "invalid params" in lower)
 
 
 def _is_context_length_error(error: str) -> bool:
