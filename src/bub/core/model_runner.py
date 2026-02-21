@@ -177,6 +177,12 @@ class ModelRunner:
             logger.warning("model.context_length_exceeded — creating recovery anchor and retrying")
             self._tape.handoff("recovery/context_length", state={"reason": "context_length_exceeded"})
             return await self._chat_once(prompt)
+        # Retry mechanism for transient errors
+        if result.error and _is_transient_error(result.error):
+            logger.warning("model.transient_error — retrying with backoff")
+            self._tape.handoff("recovery/transient_error", state={"reason": result.error})
+            await asyncio.sleep(1)  # Simple backoff
+            return await self._chat_once(prompt)
         return result
 
     async def _chat_once(self, prompt: str) -> _ChatResult:
@@ -279,6 +285,21 @@ def _is_context_length_error(error: str) -> bool:
         or "maximum context length" in lower
         or ("token" in lower and "limit" in lower and ("exceed" in lower or "too long" in lower))
     )
+
+
+def _is_transient_error(error: str) -> bool:
+    """Check if the error is a transient error that can be retried."""
+    transient_patterns = [
+        "rate limit",
+        "429",
+        "service unavailable",
+        "503",
+        "timeout",
+        "connection reset",
+        "temporarily unavailable",
+    ]
+    lower = error.lower()
+    return any(pattern in lower for pattern in transient_patterns)
 
 
 def _runtime_contract() -> str:
