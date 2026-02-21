@@ -89,6 +89,19 @@ class TapeResetInput(BaseModel):
     archive: bool = Field(default=False)
 
 
+class TapeContextInput(BaseModel):
+    """Input for constructing task-specific context."""
+
+    task: str = Field(..., description="Task/question to find relevant context for")
+    limit: int = Field(default=50, ge=1, le=100, description="Maximum entries to consider")
+
+
+class TapeContextSummaryInput(BaseModel):
+    """Input for getting context summary."""
+
+    pass
+
+
 class TapeSummarizeInput(BaseModel):
     limit: int = Field(default=50, ge=1, description="Number of recent entries to summarize")
 
@@ -625,6 +638,52 @@ def register_builtin_tools(
         messages = [ChatMessage.user(prompt)]
         response = runtime.llm.chat(messages)
         return response.content if response.content else "(no summary)"
+
+    @register(name="tape.context", short_description="Construct context for task", model=TapeContextInput)
+    def tape_context(params: TapeContextInput) -> str:
+        """Construct relevant context for a specific task.
+
+        Based on "construct, don't inherit" principle:
+        - Explores recent entries
+        - Model can then select what's relevant
+        - Avoids dumping all history into context
+        """
+        entries = tape.context_for(params.task, limit=params.limit)
+        if not entries:
+            return "(no entries)"
+
+        lines = [f"# Context for: {params.task}", f"# {len(entries)} entries", ""]
+        for entry in entries:
+            lines.append(f"## {entry.kind} #{entry.id}")
+            lines.append("```json")
+            lines.append(json.dumps(entry.payload, ensure_ascii=False, indent=2))
+            lines.append("```")
+            lines.append("")
+
+        return "\n".join(lines)
+
+    @register(name="tape.context_summary", short_description="Show context summary", model=TapeContextSummaryInput)
+    def tape_context_summary(_params: TapeContextSummaryInput) -> str:
+        """Show summary of current context state without loading all history.
+
+        Helps understand what context is available at a glance.
+        """
+        summary = tape.context_summary()
+
+        lines = [
+            f"tape: {summary['tape_name']}",
+            f"total_entries: {summary['total_entries']}",
+            f"anchors: {summary['anchors_count']}",
+            f"last_anchor: {summary['last_anchor'] or '-'}",
+            f"entries_since_anchor: {summary['entries_since_anchor']}",
+            "",
+            "recent_anchors:",
+        ]
+
+        for anchor in summary.get("recent_anchors", []):
+            lines.append(f"  - {anchor['name']} (id={anchor['id']})")
+
+        return "\n".join(lines)
 
     @register(name="tape.export", short_description="Export tape to file", model=TapeExportInput)
     def tape_export(params: TapeExportInput) -> str:

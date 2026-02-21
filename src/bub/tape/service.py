@@ -143,6 +143,50 @@ class TapeService:
             query = query.kinds(*kinds)
         return cast(list[TapeEntry], query.all())
 
+    # === Context Constructor (按需构造上下文) ===
+
+    def recent(self, *, limit: int = 50) -> list[TapeEntry]:
+        """Get recent N entries (most relevant for current task context)."""
+        all_entries: list[TapeEntry] = self._tape.read_entries()
+        return all_entries[-limit:] if len(all_entries) > limit else all_entries
+
+    def context_for(self, task: str, *, limit: int = 50) -> list[TapeEntry]:
+        """Construct context for a specific task.
+
+        Based on the principle: "explore + select + build"
+        Instead of dumping all history, we construct minimal sufficient context.
+
+        Args:
+            task: The task/question to find relevant context for
+            limit: Maximum entries to consider
+
+        Returns:
+            List of relevant entries for constructing context
+        """
+        # Strategy: Start with recent entries, rely on model to select
+        # This embodies "history can be discarded" - we don't assume
+        # all history is needed, model decides what's relevant
+        entries: list[TapeEntry] = self.recent(limit=limit)
+        return entries
+
+    def context_summary(self) -> dict[str, Any]:
+        """Get a summary of current context state.
+
+        Helps the model understand what context is available
+        without actually loading all history.
+        """
+        info = self.info()
+        last_anchor_entries = [e for e in self._tape.read_entries() if e.kind == "anchor"]
+
+        return {
+            "tape_name": info.name,
+            "total_entries": info.entries,
+            "anchors_count": info.anchors,
+            "last_anchor": info.last_anchor,
+            "entries_since_anchor": info.entries_since_last_anchor,
+            "recent_anchors": [{"name": e.payload.get("name"), "id": e.id} for e in last_anchor_entries[-5:]],
+        }
+
     def search(self, query: str, *, limit: int = 20, all_tapes: bool = False) -> list[TapeEntry]:
         normalized_query = query.strip().lower()
         if not normalized_query:
