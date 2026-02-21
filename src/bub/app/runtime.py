@@ -92,6 +92,10 @@ class AppRuntime:
             with suppress(Exception):
                 self.scheduler.shutdown()
 
+    @property
+    def llm(self):
+        return self._llm
+
     def discover_skills(self) -> list[SkillMetadata]:
         discovered = discover_skills(self.workspace)
         if self._allowed_skills is None:
