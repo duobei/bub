@@ -89,12 +89,37 @@ class TapeResetInput(BaseModel):
     archive: bool = Field(default=False)
 
 
+class TapeSummarizeInput(BaseModel):
+    limit: int = Field(default=50, ge=1, description="Number of recent entries to summarize")
+
+
+class TapeExportInput(BaseModel):
+    path: str = Field(..., description="File path to export to")
+    limit: int = Field(default=100, ge=1, description="Number of entries to export")
+
+
+class TapeArchiveInput(BaseModel):
+    name: str | None = Field(default=None, description="Archive name (optional)")
+
+
 class SkillNameInput(BaseModel):
     name: str = Field(..., description="Skill name")
 
 
 class DoneInput(BaseModel):
     summary: str = Field(default="", description="Brief summary of what was accomplished")
+
+
+class SystemHealthInput(BaseModel):
+    pass
+
+
+class SystemStatsInput(BaseModel):
+    pass
+
+
+class SystemReportInput(BaseModel):
+    pass
 
 
 class EmptyInput(BaseModel):
@@ -112,6 +137,18 @@ class ScheduleAddInput(BaseModel):
 
 class ScheduleRemoveInput(BaseModel):
     job_id: str = Field(..., description="Job id to remove")
+
+
+class ScheduleShowInput(BaseModel):
+    job_id: str = Field(..., description="Job id to show")
+
+
+class SchedulePauseInput(BaseModel):
+    job_id: str = Field(..., description="Job id to pause")
+
+
+class ScheduleResumeInput(BaseModel):
+    job_id: str = Field(..., description="Job id to resume")
 
 
 def _resolve_path(workspace: Path, raw: str) -> Path:
@@ -287,10 +324,11 @@ def register_builtin_tools(
 
     @register(name="schedule.add", short_description="Add a cron schedule", model=ScheduleAddInput, context=True)
     def schedule_add(params: ScheduleAddInput, context: ToolContext) -> str:
-        """Schedule a reminder message to be sent to current session in the future. You can specify either of the following scheduling options:
+        """Schedule a reminder message to be sent to current session.
+        Options:
         - after_seconds: run once after this many seconds from now
         - interval_seconds: run repeatedly at this interval
-        - cron: run with cron expression in crontab format: minute hour day month day_of_week
+        - cron: run with cron expression (minute hour day month day_of_week)
         """
         job_id = str(uuid.uuid4())[:8]
         if params.after_seconds is not None:
@@ -348,6 +386,50 @@ def register_builtin_tools(
             return "(no scheduled jobs)"
 
         return "\n".join(rows)
+
+    @register(name="schedule.show", short_description="Show detailed job info", model=ScheduleShowInput)
+    def schedule_show(params: ScheduleShowInput) -> str:
+        """Show detailed information about a specific scheduled job."""
+        job = runtime.scheduler.get_job(params.job_id)
+        if not job:
+            raise RuntimeError(f"job not found: {params.job_id}")
+
+        next_run = "N/A"
+        if job.next_run_time:
+            next_run = job.next_run_time.isoformat()
+
+        prev_run = "N/A"
+        if job._job:
+            prev_run = str(job._job.last_run_time) if job._job.last_run_time else "N/A"
+
+        trigger = str(job.trigger)
+        return (
+            f"id: {job.id}\n"
+            f"name: {job.name}\n"
+            f"next_run: {next_run}\n"
+            f"prev_run: {prev_run}\n"
+            f"trigger: {trigger}\n"
+            f"message: {job.kwargs.get('message', '')}\n"
+            f"session: {job.kwargs.get('session_id', '')}"
+        )
+
+    @register(name="schedule.pause", short_description="Pause a scheduled job", model=SchedulePauseInput)
+    def schedule_pause(params: SchedulePauseInput) -> str:
+        """Pause a scheduled job."""
+        job = runtime.scheduler.get_job(params.job_id)
+        if not job:
+            raise RuntimeError(f"job not found: {params.job_id}")
+        runtime.scheduler.pause_job(params.job_id)
+        return f"paused: {params.job_id}"
+
+    @register(name="schedule.resume", short_description="Resume a paused job", model=ScheduleResumeInput)
+    def schedule_resume(params: ScheduleResumeInput) -> str:
+        """Resume a paused job."""
+        job = runtime.scheduler.get_job(params.job_id)
+        if not job:
+            raise RuntimeError(f"job not found: {params.job_id}")
+        runtime.scheduler.resume_job(params.job_id)
+        return f"resumed: {params.job_id}"
 
     if runtime.settings.searxng_url:
 
@@ -529,6 +611,55 @@ def register_builtin_tools(
         runtime.reset_session_context(session_id)
         return result
 
+    @register(name="tape.summarize", short_description="Summarize tape entries", model=TapeSummarizeInput)
+    def tape_summarize(params: TapeSummarizeInput) -> str:
+        """Summarize recent tape entries using LLM."""
+        entries = tape.read_entries()[-params.limit :]
+        if not entries:
+            return "(no entries)"
+
+        content = "\n".join(f"{entry.kind}: {entry.payload}" for entry in entries)
+        prompt = f"Summarize these {len(entries)} tape entries in a brief paragraph:\n{content}"
+        from republic import ChatMessage
+
+        messages = [ChatMessage.user(prompt)]
+        response = runtime.llm.chat(messages)
+        return response.content if response.content else "(no summary)"
+
+    @register(name="tape.export", short_description="Export tape to file", model=TapeExportInput)
+    def tape_export(params: TapeExportInput) -> str:
+        """Export tape entries to a file."""
+        entries = tape.read_entries()[-params.limit :]
+        if not entries:
+            return "(no entries to export)"
+
+        output_path = _resolve_path(runtime.workspace, params.path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        lines = [f"# Tape Export: {tape.tape.name}", f"# Entries: {len(entries)}", ""]
+        for entry in entries:
+            lines.append(f"## {entry.kind} #{entry.id}")
+            lines.append("```json")
+            lines.append(json.dumps(entry.payload, ensure_ascii=False, indent=2))
+            lines.append("```")
+            lines.append("")
+
+        output_path.write_text("\n".join(lines), encoding="utf-8")
+        return f"exported {len(entries)} entries to {output_path}"
+
+    @register(name="tape.archive", short_description="Archive current tape", model=TapeArchiveInput)
+    def tape_archive(params: TapeArchiveInput) -> str:
+        """Archive current tape to a new tape name."""
+        archive_name = params.name or f"{tape.tape.name}_archive"
+        entries = tape.read_entries()
+
+        # Create new tape with same entries
+        new_tape = runtime.llm.tape(archive_name)
+        for entry in entries:
+            new_tape.append(entry)
+
+        return f"archived to: {archive_name}"
+
     @register(name="skills.list", short_description="List skills", model=EmptyInput)
     def list_skills(_params: EmptyInput) -> str:
         """List all discovered skills in compact form."""
@@ -554,3 +685,83 @@ def register_builtin_tools(
     def quit_command(_params: EmptyInput) -> str:
         """Request exit from interactive CLI."""
         return "exit"
+
+    @register(name="system.health", short_description="Health check", model=SystemHealthInput)
+    def system_health(_params: SystemHealthInput) -> str:
+        """Check Bub system health."""
+        import psutil
+
+        cpu_percent = psutil.cpu_percent(interval=0.5)
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage("/")
+
+        health_status = "healthy"
+        if cpu_percent > 90 or memory.percent > 90 or disk.percent > 90:
+            health_status = "degraded"
+
+        return (
+            f"status: {health_status}\n"
+            f"cpu: {cpu_percent}%\n"
+            f"memory: {memory.percent}%\n"
+            f"disk: {disk.percent}%\n"
+            f"sessions: {len(runtime._sessions)}"
+        )
+
+    @register(name="system.stats", short_description="Runtime statistics", model=SystemStatsInput)
+    def system_stats(_params: SystemStatsInput) -> str:
+        """Get runtime statistics."""
+        jobs = runtime.scheduler.get_jobs()
+        job_count = len(jobs)
+
+        sessions = list(runtime._sessions.keys())
+        session_info = []
+        for sid in sessions:
+            session = runtime._sessions.get(sid)
+            if session:
+                tape_info = session.tape.info()
+                session_info.append(f"{tape_info.name} entries={tape_info.entries}")
+
+        lines = [f"jobs: {job_count}", f"sessions: {len(sessions)}"]
+        if session_info:
+            lines.append("session_details:")
+            for info in session_info:
+                lines.append(f"  - {info}")
+
+        return "\n".join(lines)
+
+    @register(name="system.report", short_description="Generate status report", model=SystemReportInput)
+    def system_report(_params: SystemReportInput) -> str:
+        """Generate a comprehensive status report."""
+        import psutil
+        from datetime import datetime
+
+        now = datetime.now().isoformat()
+        cpu_percent = psutil.cpu_percent(interval=0.5)
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage("/")
+
+        jobs = runtime.scheduler.get_jobs()
+        sessions = len(runtime._sessions)
+
+        report = [
+            f"# Bub Status Report - {now}",
+            "",
+            "## System",
+            f"- CPU: {cpu_percent}%",
+            f"- Memory: {memory.percent}% ({memory.used // (1024**2)}MB / {memory.total // (1024**2)}MB)",
+            f"- Disk: {disk.percent}%",
+            "",
+            "## Runtime",
+            f"- Sessions: {sessions}",
+            f"- Scheduled Jobs: {len(jobs)}",
+            "",
+        ]
+
+        if jobs:
+            report.append("## Jobs")
+            for job in jobs:
+                next_run = job.next_run_time.isoformat() if job.next_run_time else "N/A"
+                report.append(f"- {job.id}: next={next_run}")
+            report.append("")
+
+        return "\n".join(report)
