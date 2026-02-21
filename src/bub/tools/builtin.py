@@ -732,8 +732,9 @@ def register_builtin_tools(
     @register(name="system.report", short_description="Generate status report", model=SystemReportInput)
     def system_report(_params: SystemReportInput) -> str:
         """Generate a comprehensive status report."""
-        import psutil
         from datetime import datetime
+
+        import psutil
 
         now = datetime.now().isoformat()
         cpu_percent = psutil.cpu_percent(interval=0.5)
