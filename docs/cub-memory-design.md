@@ -69,29 +69,29 @@
 ```python
 class ContextConstructor:
     """按需构造上下文"""
-    
+
     def construct_for_task(self, task: str, tape: Tape) -> list[Message]:
         # 1. 探索：查询相关历史
         relevant = self.explore(task, tape)
-        
+
         # 2. 选择：丢弃无关内容
         selected = self.select(task, relevant)
-        
+
         # 3. 构建：构造最小充分上下文
         return self.build(selected)
-    
+
     def explore(self, task: str, tape: Tape) -> list[Entry]:
         """探索可能相关的记忆"""
         # 搜索锚点
         anchors = tape.anchors()
-        
+
         # 语义搜索（如需要）
         if self.has_rag:
             return tape.search(task)
-        
+
         # 或返回最近 N 条
         return tape.recent(limit=50)
-    
+
     def select(self, task: str, candidates: list[Entry]) -> list[Entry]:
         """选择最小充分材料"""
         # 模型自己决定哪些相关
@@ -165,7 +165,7 @@ ctx_a = tape.context_for("修复 Linux 桌面")
 # - 最近 10 条相关讨论
 # - 之前的锚点 "linux-task/start"
 
-# 任务 B 的上下文构造  
+# 任务 B 的上下文构造
 ctx_b = tape.context_for("今晚吃什么")
 # 可能只包含：
 # - 最近 5 条对话
@@ -212,14 +212,14 @@ class OverflowHandler:
         # 1. 检查是否需要处理
         if tape.size() < limit:
             return tape.full_context()
-        
+
         # 2. 找到最近的锚点
         last_anchor = tape.last_anchor()
-        
+
         # 3. 只保留锚点之后的内容
         # 或者：创建新锚点，重新开始
         tape.handoff("context:overflow", state={"reason": "length"})
-        
+
         # 4. 探索历史，选择相关
         return self.construct_for_current_task(tape)
 ```
