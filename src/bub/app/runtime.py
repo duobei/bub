@@ -97,6 +97,15 @@ class AppRuntime:
         return self._llm
 
     def discover_skills(self) -> list[SkillMetadata]:
+        """Discover skills on first call."""
+        discovered = discover_skills(self.workspace)
+        if self._allowed_skills is None:
+            return discovered
+        return [skill for skill in discovered if skill.name.casefold() in self._allowed_skills]
+
+    def reload_skills(self) -> list[SkillMetadata]:
+        """Reload skills dynamically - hot loading support."""
+        # Force fresh discovery
         discovered = discover_skills(self.workspace)
         if self._allowed_skills is None:
             return discovered
